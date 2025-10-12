@@ -1,0 +1,35 @@
+﻿name: Policy Check (OPA)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  opa_policy_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq (for JSON parsing)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Evaluate OPA policy (pretty output)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/work" -w /work openpolicyagent/opa:latest \
+            eval -f pretty -d policy/deny-latest.rego -I input/deployment.json \
+            "data.image.policy.deny"
+
+      - name: Fail build if violations exist
+        run: |
+          set -e
+          RESULT=$(docker run --rm -v "${{ github.workspace }}:/work" -w /work openpolicyagent/opa:latest \
+            eval -f json -d policy/deny-latest.rego -I input/deployment.json "data.image.policy.deny" | jq -r '.result[0].expressions[0].value | join("\n")')
+          echo "$RESULT"
+          if [ -n "$RESULT" ]; then
+            echo "::error::Policy violations detected:"
+            echo "$RESULT"
+            exit 1
+          else
+            echo "✅ No policy violations."
+          fi
