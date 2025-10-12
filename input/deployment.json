@@ -1,0 +1,5 @@
+﻿{
+  "service": "demo-api",
+  "image": "python:3.11-slim",
+  "replicas": 1
+}
