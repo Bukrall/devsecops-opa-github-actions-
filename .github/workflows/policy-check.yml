@@ -28,6 +28,15 @@ jobs:
 
       - name: Evaluate policy (allow + deny)
         run: |
+              - name: Upload OPA audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: opa-audit-evidence
+          path: |
+            opa-decision.json
+            opa-allow.json
+            opa-deny.json
+
           set -e
 
           # Approved input (should PASS)
