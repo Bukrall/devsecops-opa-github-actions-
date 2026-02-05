@@ -40,5 +40,5 @@ jobs:
             echo "$DENY"
             exit 1
           else
-            echo "✅ No policy violations."
+            echo "No policy violations."
           fi
