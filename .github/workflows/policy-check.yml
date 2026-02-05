@@ -1,4 +1,4 @@
-﻿name: Policy Check (OPA)
+name: Policy Check (OPA)
 
 on:
   push:
@@ -11,24 +11,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install jq (for JSON parsing)
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
 
-      - name: Evaluate OPA policy (pretty output)
-        run: |
-          docker run --rm -v "${{ github.workspace }}:/work" -w /work openpolicyagent/opa:latest \
-            eval -f pretty -d policy/deny-latest.rego -I input/deployment.json \
-            "data.image.policy.deny"
+      - name: Run OPA policy tests
+        run: opa test ./input -v
 
-      - name: Fail build if violations exist
+      - name: Evaluate policy (show deny reasons)
         run: |
           set -e
-          RESULT=$(docker run --rm -v "${{ github.workspace }}:/work" -w /work openpolicyagent/opa:latest \
-            eval -f json -d policy/deny-latest.rego -I input/deployment.json "data.image.policy.deny" | jq -r '.result[0].expressions[0].value | join("\n")')
-          echo "$RESULT"
-          if [ -n "$RESULT" ]; then
+
+          # ✅ Good input (should pass)
+          echo '{"image":"python:3.11-slim"}' > input.json
+          echo "== Checking approved image =="
+          opa eval -f pretty -d ./input/policy.rego "data.cicd.image.allow" --input input.json
+
+          # ❌ Bad input (demo case) — uncomment if you WANT CI to fail on purpose
+          # echo '{"image":"python:latest"}' > input.json
+
+          echo "== Checking deny reasons (if any) =="
+          DENY=$(opa eval -f json -d ./input/policy.rego "data.cicd.image.deny" --input input.json \
+            | jq -r '.result[0].expressions[0].value[]?')
+
+          if [ -n "$DENY" ]; then
             echo "::error::Policy violations detected:"
-            echo "$RESULT"
+            echo "$DENY"
             exit 1
           else
             echo "✅ No policy violations."
