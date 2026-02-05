@@ -2,19 +2,16 @@ package cicd.image
 
 default allow := false
 
-# 1) Block :latest
 deny[msg] {
   endswith(input.image, ":latest")
   msg := "Blocked: image tag ':latest' is not allowed. Pin a version like python:3.11-slim."
 }
 
-# 2) Only allow python images (keeps it consistent with your demo)
 deny[msg] {
   not startswith(input.image, "python:")
   msg := "Blocked: only python base images are allowed in this demo."
 }
 
-# 3) Allowlist (your current rule, but made explicit and reusable)
 approved_images := {"python:3.11-slim"}
 
 allow {
