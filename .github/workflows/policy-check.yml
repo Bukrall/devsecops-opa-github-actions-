@@ -1,5 +1,4 @@
-#ci updated
-
+```yaml
 name: Policy Check (OPA)
 
 on:
@@ -22,37 +21,59 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # ✅ IMPORTANT: only test .rego files (avoids broken JSON)
+      # ✅ Only test .rego files (avoids loading broken/non-JSON files)
       - name: Run OPA policy tests
         run: opa test ./input/*.rego -v
 
-      - name: Evaluate policy (allow + deny)
+      # ✅ Always creates the audit files, then uploads them
+      - name: Evaluate policy (create audit evidence)
         run: |
-              - name: Upload OPA audit evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: opa-audit-evidence
-          path: |
-            opa-decision.json
-            opa-allow.json
-            opa-deny.json
-
           set -e
 
           # Approved input (should PASS)
           echo '{"image":"python:3.11-slim"}' > input.json
 
-          echo "== OPA allow decision =="
-          opa eval -f pretty -d ./input/policy.rego "data.cicd.image.allow" --input input.json
+          # Always create files (even if something goes wrong)
+          opa eval -f json -d ./input/policy.rego "data.cicd.image.allow" --input input.json > opa-allow.json || echo '{}' > opa-allow.json
+          opa eval -f json -d ./input/policy.rego "data.cicd.image.deny"  --input input.json > opa-deny.json  || echo '{}' > opa-deny.json
 
-          echo "== OPA deny reasons (if any) =="
-          DENY=$(opa eval -f json -d ./input/policy.rego "data.cicd.image.deny" --input input.json \
-            | jq -r '.result[0].expressions[0].value[]?')
+          # Build one combined audit JSON
+          jq -n \
+            --arg workflow "${{ github.workflow }}" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg timestamp "$(date -u +%FT%TZ)" \
+            --slurpfile allow opa-allow.json \
+            --slurpfile deny opa-deny.json \
+            '{
+              workflow: $workflow,
+              run_id: $run_id,
+              sha: $sha,
+              timestamp_utc: $timestamp,
+              opa_allow_result: $allow[0],
+              opa_deny_result: $deny[0]
+            }' > opa-decision.json
 
-          if [ -n "$DENY" ]; then
+          echo "=== Audit file created ==="
+          ls -la opa-allow.json opa-deny.json opa-decision.json
+
+          # Fail build if deny has any messages
+          DENY_LINES=$(jq -r '.result[0].expressions[0].value[]?' opa-deny.json 2>/dev/null || true)
+          if [ -n "$DENY_LINES" ]; then
             echo "::error::Policy violations detected:"
-            echo "$DENY"
+            echo "$DENY_LINES"
             exit 1
           else
             echo "✅ No policy violations."
           fi
+
+      - name: Upload OPA audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: opa-audit-evidence
+          if-no-files-found: error
+          path: |
+            opa-decision.json
+            opa-allow.json
+            opa-deny.json
+```
