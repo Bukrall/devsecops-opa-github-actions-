@@ -7,8 +7,9 @@ on:
 jobs:
   opa_policy_check:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup OPA
@@ -19,13 +20,15 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # ✅ IMPORTANT: only test .rego files (avoids broken JSON)
       - name: Run OPA policy tests
         run: opa test ./input/*.rego -v
 
-      - name: Evaluate policy (print allow + deny, fail if deny exists)
+      - name: Evaluate policy (allow + deny)
         run: |
           set -e
 
+          # Approved input (should PASS)
           echo '{"image":"python:3.11-slim"}' > input.json
 
           echo "== OPA allow decision =="
@@ -40,5 +43,5 @@ jobs:
             echo "$DENY"
             exit 1
           else
-            echo "No policy violations."
+            echo "✅ No policy violations."
           fi
