@@ -2,7 +2,14 @@ package cicd.image
 
 default allow = false
 
-approved_images = {"python:3.11-slim"}
+approved_images = {
+  "dev":  {"python:3.11-slim", "python:3.11-alpine"},
+  "prod": {"python:3.11-slim"},
+}
+
+env = e {
+  e := input.env
+} else = "dev"
 
 deny[msg] {
   endswith(input.image, ":latest")
@@ -15,9 +22,8 @@ deny[msg] {
 }
 
 deny[msg] {
-  startswith(input.image, "python:")
-  not approved_images[input.image]
-  msg := sprintf("Blocked: '%s' is not in the approved allowlist.", [input.image])
+  not approved_images[env][input.image]
+  msg := sprintf("Blocked: '%s' is not approved for env '%s'.", [input.image, env])
 }
 
 allow {
