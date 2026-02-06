@@ -20,7 +20,6 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # Only test Rego files (so JSON files can't break test loading)
       - name: Run OPA policy tests
         run: opa test ./input/*.rego -v
 
@@ -28,19 +27,15 @@ jobs:
         run: |
           set -e
 
-          # Input used for evaluation
-          echo '{"image":"python:3.11-slim"}' > input.json
+          echo '{"env":"prod","image":"python:3.11-slim"}' > input.json
 
-          # Pre-create files so upload never fails due to missing files
           echo '{}' > opa-allow.json
           echo '{}' > opa-deny.json
           echo '{}' > opa-decision.json
 
-          # Run OPA evaluations (never leave files missing)
           opa eval -f json -d ./input/policy.rego "data.cicd.image.allow" --input input.json > opa-allow.json || true
           opa eval -f json -d ./input/policy.rego "data.cicd.image.deny"  --input input.json > opa-deny.json  || true
 
-          # Build combined audit JSON (safe even if allow/deny outputs are empty)
           jq -n \
             --arg workflow "${{ github.workflow }}" \
             --arg run_id "${{ github.run_id }}" \
@@ -62,7 +57,6 @@ jobs:
           echo "=== Debug: opa-decision.json ==="
           cat opa-decision.json
 
-          # Enforce: fail if deny contains any messages (handles null safely)
           DENY_LINES=$(jq -r '.result[0].expressions[0].value[]? // empty' opa-deny.json 2>/dev/null || true)
 
           if [ -n "$DENY_LINES" ]; then
@@ -70,7 +64,7 @@ jobs:
             echo "$DENY_LINES"
             exit 1
           else
-            echo "✅ No policy violations."
+            echo "No policy violations."
           fi
 
       - name: Upload OPA audit evidence
