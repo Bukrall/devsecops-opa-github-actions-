@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>OPA Policy-Gated Deployment</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto;">
+    <h1>Policy-Gated CI/CD Demo</h1>
+    <p>
+      This website is deployed only when the OPA policy check pipeline passes.
+    </p>
+
+    <ul>
+      <li>OPA policies evaluated in GitHub Actions</li>
+      <li>Environment-aware rules (dev vs prod)</li>
+      <li>Audit artifacts generated per run</li>
+      <li>Deployment blocked if policy fails</li>
+    </ul>
+
+    <p><strong>Status:</strong> Deployed via policy-gated pipeline ✅</p>
+  </body>
+</html>
